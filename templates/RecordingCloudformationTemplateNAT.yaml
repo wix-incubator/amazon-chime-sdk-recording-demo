@@ -62,19 +62,19 @@ Parameters:
   PrivateSubnet1CIDR:
     Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
     Type: String
-    Default: 10.192.10.0/24
+    Default: 10.192.12.0/24
   PrivateSubnet2CIDR:
     Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
     Type: String
-    Default: 10.192.11.0/24
+    Default: 10.192.13.0/24
   PublicSubnet1CIDR:
     Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
     Type: String
-    Default: 10.192.12.0/24
+    Default: 10.192.10.0/24
   PublicSubnet2CIDR:
     Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
     Type: String
-    Default: 10.192.13.0/24
+    Default: 10.192.11.0/24
 Resources:
   RecordingArtifactsUploadBucket:
     Type: AWS::S3::Bucket
@@ -246,7 +246,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName} Private Subnet 
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -266,7 +266,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName} Private Subnet 
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
   PrivateRouteTable1:
     Type: AWS::EC2::RouteTable
     Properties:
