@@ -3,7 +3,19 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-echo v14-wix
+_kill_procs() {
+  kill -TERM $node
+  wait $node
+  kill -TERM $firefox
+  wait $firefox
+  kill -TERM $xvfb
+  wait $xvfb
+}
+
+# Setup a trap to catch SIGTERM/SIGINT and relay it to child processes
+trap _kill_procs SIGTERM SIGINT
+
+echo v15-wix
 
 set -xeo pipefail
 
@@ -15,6 +27,7 @@ SCREEN_WIDTH=${RECORDING_SCREEN_WIDTH:-'1280'}
 SCREEN_HEIGHT=${RECORDING_SCREEN_HEIGHT:-'720'}
 SCREEN_RESOLUTION=${SCREEN_WIDTH}x${SCREEN_HEIGHT}
 COLOR_DEPTH=24
+XVFB_WHD="${SCREEN_RESOLUTION}x${COLOR_DEPTH}"
 X_SERVER_NUM=1
 S3_BUCKET_NAME=${RECORDING_ARTIFACTS_BUCKET}
 
@@ -25,7 +38,8 @@ pacmd set-default-sink v1  # Set the `v1` as the default sink device
 pacmd set-default-source v1.monitor  # Set the monitor of the v1 sink to be the default source
 
 # Start X11 virtual framebuffer so Firefox will have somewhere to draw
-Xvfb :${X_SERVER_NUM} -ac -screen 0 ${SCREEN_RESOLUTION}x${COLOR_DEPTH} > /dev/null 2>&1 &
+sudo Xvfb :${X_SERVER_NUM} -ac -screen 0 $XVFB_WHD -nolisten tcp &
+xvfb=$!
 export DISPLAY=:${X_SERVER_NUM}.0
 sleep 0.5  # Ensure this has started before moving on
 
@@ -70,6 +84,7 @@ firefox \
   --kiosk \
   --ssb ${BROWSER_URL} \
   &
+firefox=$!
 # sleep 0.5  # Ensure this has started before moving on
 # xdotool mousemove 1 1 click 1  # Move mouse out of the way so it doesn't trigger the "pause" overlay on the video tile
 
@@ -83,5 +98,9 @@ done &
 
 sleep $RECORDER_DELAY # Skip part of long loading procedure...
 
-exec node /recording/record.js ${S3_BUCKET_NAME} ${SCREEN_WIDTH} ${SCREEN_HEIGHT}
+node /recording/record.js ${S3_BUCKET_NAME} ${SCREEN_WIDTH} ${SCREEN_HEIGHT} &
+node=$!
 
+wait $node
+wait $firefox
+wait $xvfb
