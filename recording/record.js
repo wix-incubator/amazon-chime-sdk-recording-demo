@@ -58,9 +58,6 @@ const cvlcArgs = [
 log(`cvlc ${cvlcArgs.join(' ')}`);
 const cvlc = spawn('cvlc', cvlcArgs);
 
-cvlc.stdout.on("data", (data) =>
-  log(`cvlc stdout: ${data}`)
-);
 cvlc.stderr.on("data", (data) =>
   error(`cvlc stderr: ${data}`)
 );
