@@ -37,7 +37,7 @@ let recordingDurationInterval;
 const venc = `venc=x264{profile=main,preset=veryfast,vbv-minrate=${VIDEO_BITRATE},vbv-maxrate=${VIDEO_BITRATE},vbv-bufsize=8000,hrd=cbr,x264-scenecut=-1}`
 const videoOpts = `vcodec=h264,${venc},fps=${VIDEO_FRAMERATE},gop=${VIDEO_GOP},vb=${VIDEO_BITRATE}`
 const audioOpts = `acodec=aac,ab=${AUDIO_BITRATE},channels=${AUDIO_CHANNELS},samplerate=${AUDIO_SAMPLERATE}`
-const outputOpts = `access=file,mux=mp4,dst=-`
+const outputOpts = `access=file,mux=ffmpeg{mux=mp4},dst=-`
 const cvlcArgs = [
   // Capture display device
   'screen://',
@@ -48,6 +48,9 @@ const cvlcArgs = [
   `:screen-height=${BROWSER_SCREEN_HEIGHT}`,
   // Capture audio device
   '--input-slave=pulse://',
+  '--live-caching=10000',
+  '--file-caching=10000',
+  '--sout-mux-caching=10000',
   '--sout',
   `#transcode{${videoOpts},${audioOpts},audio-sync,threads=0}:standard{${outputOpts}}`,
   '--sout-avformat-options={movflags=empty_moov+frag_keyframe+default_base_moof}',
