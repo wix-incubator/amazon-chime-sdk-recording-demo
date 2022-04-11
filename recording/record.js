@@ -50,12 +50,12 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   // hides the mouse cursor from the resulting video
   "-draw_mouse",
   "0",
-  "-rtbufsize",
-  "104857600", // 100M
-  "-probesize",
-  "10000000", // 10MB
-  "-thread_queue_size",
-  "1024", // 1024 * 1280 * 720 * 4 bytes ~= 3.5GB
+  // "-rtbufsize",
+  // "104857600", // 100M
+  // "-probesize",
+  // "10000000", // 10MB
+  // "-thread_queue_size",
+  // "1024", // 1024 * 1280 * 720 * 4 bytes ~= 3.5GB
   // grab the x11 display as video input
   "-f",
   "x11grab",
@@ -66,8 +66,8 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   "pulse",
   "-ac",
   "2",
-  "-thread_queue_size",
-  "1024",
+  // "-thread_queue_size",
+  // "1024",
   "-i",
   "default",
   // "-vsync",
@@ -100,8 +100,8 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   `${AUDIO_CHANNELS}`,
   "-ar",
   `${AUDIO_SAMPLERATE}`,
-  "-af",
-  "aresample=async=1000",
+  // "-af",
+  // "aresample=async=1000",
   // adjust fragmentation to prevent seeking(resolve issue: muxer does not support non seekable output)
   "-movflags",
   "empty_moov+default_base_moof+frag_keyframe",
