@@ -360,9 +360,9 @@ Resources:
     Properties:
       ClusterName: 
         Ref: EcsClusterName
-      ClusterSettings:
-        - Name: containerInsights
-          Value: enabled
+      # ClusterSettings:
+      #   - Name: containerInsights
+      #     Value: enabled
   ContainerInstances:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -372,7 +372,8 @@ Resources:
         InstanceType: !Ref InstanceType
         IamInstanceProfile:
           Name: !Ref EC2InstanceProfile
-        SecurityGroups: [!Ref EcsSecurityGroup]
+        SecurityGroupIds:
+          - !GetAtt EcsSecurityGroup.GroupId
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash -xe
