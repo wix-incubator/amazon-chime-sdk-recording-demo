@@ -413,8 +413,8 @@ Resources:
         AutoScalingGroupArn: !Ref ECSAutoScalingGroup
         ManagedScaling:
           InstanceWarmupPeriod: 20 # seconds
-          MaximumScalingStepSize: 10
-          MinimumScalingStepSize: 1
+          MaximumScalingStepSize: 100
+          MinimumScalingStepSize: 2
           Status: ENABLED
           TargetCapacity: 80 # keep 20% of instances warm and ready
         ManagedTerminationProtection: ENABLED
