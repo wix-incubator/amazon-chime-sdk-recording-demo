@@ -1,6 +1,3 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
-
 AWSTemplateFormatVersion: 2010-09-09
 Transform: 'AWS::Serverless-2016-10-31'
 Parameters:
@@ -22,6 +19,9 @@ Parameters:
   ECSContainerMemoryReservation:
     Type: Number
     Default: 8192
+  EcsLaunchTemplateName:
+    Type: String
+    Default: 'EcsRecordingLaunchTemplate'
   EcsClusterName:
     Type: String
     Description: 'Specifies the ECS Cluster Name with which the resources would be associated'
@@ -29,16 +29,9 @@ Parameters:
   ECRDockerImageArn:
     Type: String
     Description: 'ARN of the docker image stored in ECR along with the tag'
-  EcsAsgMinSize:
-    Type: Number
-    Default: 50
   EcsAsgMaxSize:
     Type: Number
-    Default: 1000
-  DesiredCapacity:
-    Type: Number
-    Default: 50
-    Description: Number of instances to launch in your ECS cluster.
+    Default: 10
   ImageId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Description: Use an Image from SSM Parameter Store
@@ -47,7 +40,7 @@ Parameters:
     Description: EC2 instance type
     Type: String
     Default: c6a.xlarge
-    AllowedValues: [mt2.large, t2.xlarge, t2.2xlarge, t3.large, t3.xlarge, t3.2xlarge, m4.large, m4.xlarge, 
+    AllowedValues: [t2.xlarge, t2.2xlarge, t3.large, t3.xlarge, t3.2xlarge, m4.large, m4.xlarge, 
     m4.2xlarge, m4.4xlarge, m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.8xlarge, c4.xlarge, c4.2xlarge, 
     c4.4xlarge, c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c6a.xlarge]
     ConstraintDescription: Please choose a valid instance type.
@@ -62,6 +55,14 @@ Parameters:
     Description: Please enter the IP range (CIDR notation) for this VPC
     Type: String
     Default: 10.192.0.0/16
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.12.0/24
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.13.0/24
   PublicSubnet1CIDR:
     Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
     Type: String
@@ -101,6 +102,7 @@ Resources:
   
   RecordingLambdaFunction:
     Type: 'AWS::Serverless::Function'
+    DependsOn: ECSClusterCPA # ensure decoupled ECS Cluster Capacity Provider Association is created before using ECS Cluster
     Properties:
       FunctionName: RecordingLambda
       Description: Lambda to interact with ECS for starting and stopping recording.
@@ -165,13 +167,6 @@ Resources:
               LinuxParameters:
                 SharedMemorySize: 2048
 
-  ECSCluster:
-    Type: 'AWS::ECS::Cluster'
-    Properties:
-        ClusterName: 
-            Ref: EcsClusterName
-# Refer: https://docs.aws.amazon.com/codebuild/latest/userguide/cloudformation-vpc-template.html
-  
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -183,24 +178,72 @@ Resources:
         - Key: Name
           Value: !Ref EnvironmentName
   InternetGateway:
-    Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: Name
-          Value: !Ref EnvironmentName
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: Name
+            Value: !Ref EnvironmentName
   InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
+
+  NATGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIPAddress1.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName} NAT GW (AZ1)
+  ElasticIPAddress1:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NATGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIPAddress2.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName} NAT GW (AZ2)
+  ElasticIPAddress2:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       CidrBlock: !Ref PublicSubnet1CIDR
-      # MapPublicIpOnLaunch: true
-      MapPublicIpOnLaunch: false
+      MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
@@ -210,11 +253,24 @@ Resources:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 1, !GetAZs  '' ]
       CidrBlock: !Ref PublicSubnet2CIDR
-      # MapPublicIpOnLaunch: true
-      MapPublicIpOnLaunch: false
+      MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName} Public Subnet 
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Routes 1
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Routes 2
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -222,6 +278,19 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName} Public Routes
+
+  DefaultPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway1
+  DefaultPrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway2
   DefaultPublicRoute:
     Type: AWS::EC2::Route
     DependsOn: InternetGatewayAttachment
@@ -230,17 +299,27 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
   
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref PrivateSubnet2
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet1
-
   PublicSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet2
+
   EcsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -254,14 +333,14 @@ Resources:
         FromPort: '80'
         ToPort: '80'
         CidrIp: 0.0.0.0/0
-  # EcsSecurityGroupSSHinbound:
-  #   Type: AWS::EC2::SecurityGroupIngress
-  #   Properties:
-  #       GroupId: !Ref EcsSecurityGroup
-  #       IpProtocol: tcp
-  #       FromPort: '22'
-  #       ToPort: '22'
-  #       CidrIp: 0.0.0.0/0
+  EcsSecurityGroupSSHinbound:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+        GroupId: !Ref EcsSecurityGroup
+        IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
   EcsSecurityGroupALBports:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -275,43 +354,88 @@ Resources:
     Properties:
         LogGroupName: !Join ['-', [ECSLogGroup, !Ref AWS::StackName]]
         RetentionInDays: 14
-        
+
+  ECSCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: 
+        Ref: EcsClusterName
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+  ContainerInstances:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Ref EcsLaunchTemplateName
+      LaunchTemplateData:
+        ImageId: !Ref ImageId
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Name: !Ref EC2InstanceProfile
+        SecurityGroups: [!Ref EcsSecurityGroup]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+            echo ECS_IMAGE_PULL_BEHAVIOR=prefer-cached >> /etc/ecs/ecs.config
+            yum install -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+        Monitoring:
+          Enabled: true
   ECSAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier: 
-      - !Ref PublicSubnet1
-      - !Ref PublicSubnet2
-      LaunchConfigurationName: !Ref ContainerInstances
-      MinSize: '5'
+      - !Ref PrivateSubnet1
+      - !Ref PrivateSubnet2
+      LaunchTemplate: 
+        LaunchTemplateId: !Ref ContainerInstances
+        Version: !GetAtt ContainerInstances.LatestVersionNumber
+      # These are managed by ECS Capacity Provider, hence 0
+      MinSize: 0
+      DesiredCapacity: 0
       MaxSize: !Ref EcsAsgMaxSize
-      DesiredCapacity: !Ref DesiredCapacity
+      MetricsCollection:
+        - Granularity: 1Minute
+        # all metrics are collected when not specified otherwise
+      NewInstancesProtectedFromScaleIn: true
     CreationPolicy:
       ResourceSignal:
         Timeout: PT15M
     UpdatePolicy:
       AutoScalingReplacingUpdate:
-        WillReplace: 'true'
-
-  ContainerInstances:
-    Type: AWS::AutoScaling::LaunchConfiguration
+        WillReplace: true
+  ECSCapacityProvider:
+    Type: 'AWS::ECS::CapacityProvider'
     Properties:
-      ImageId: !Ref ImageId
-      SecurityGroups: [!Ref EcsSecurityGroup]
-      InstanceType: !Ref InstanceType
-      IamInstanceProfile: !Ref EC2InstanceProfile
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash -xe
-          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-          echo ECS_IMAGE_PULL_BEHAVIOR=prefer-cached >> /etc/ecs/ecs.config
-          yum install -y aws-cfn-bootstrap
-          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+      Name: 'EcsCapacityProvider'
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: !Ref ECSAutoScalingGroup
+        ManagedScaling:
+          InstanceWarmupPeriod: 20 # seconds
+          MaximumScalingStepSize: 10
+          MinimumScalingStepSize: 1
+          Status: ENABLED
+          TargetCapacity: 80 # keep 20% of instances warm and ready
+        ManagedTerminationProtection: ENABLED
+  ECSClusterCPA:
+    Type: "AWS::ECS::ClusterCapacityProviderAssociations"
+    Properties:
+      Cluster: !Ref ECSCluster
+      CapacityProviders:
+        - !Ref ECSCapacityProvider
+      DefaultCapacityProviderStrategy:
+        - Base: 1 # at least 1 task will be run on this capacity provider
+          Weight: 1
+          CapacityProvider: !Ref ECSCapacityProvider
+
+
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Path: /
       Roles: [!Ref EC2Role]
+
   EC2Role:
     Type: AWS::IAM::Role
     Properties:
@@ -334,8 +458,9 @@ Resources:
             Action: ['ecs:CreateCluster', 'ecs:DeregisterContainerInstance', 'ecs:DiscoverPollEndpoint',
               'ecs:Poll', 'ecs:RegisterContainerInstance', 'ecs:StartTelemetrySession',
               'ecs:Submit*', 'logs:CreateLogStream', 'logs:PutLogEvents', 'ecr:GetAuthorizationToken', 
-              'ecr:BatchCheckLayerAvailability', 'ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer']
+              'ecr:BatchCheckLayerAvailability', 'ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer', 'autoscaling:CreateOrUpdateTags']
             Resource: '*'
+
 Outputs:
   ApiURL:
     Description: "API endpoint URL for Prod environment"

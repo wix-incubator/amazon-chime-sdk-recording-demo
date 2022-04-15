@@ -157,7 +157,7 @@ spawnOrFail("sam", [
   "--s3-bucket",
   `${bucket}`,
   "--template-file",
-  "templates/RecordingCloudformationTemplateNAT.yaml",
+  "templates/RecordingCloudformationTemplate.yaml",
   "--output-template-file",
   "build/packaged.yaml",
   "--region",
