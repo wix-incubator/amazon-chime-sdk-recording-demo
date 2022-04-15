@@ -363,7 +363,7 @@ Resources:
       # ClusterSettings:
       #   - Name: containerInsights
       #     Value: enabled
-  ContainerInstances:
+  ContainerInstancesLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateName: !Ref EcsLaunchTemplateName
@@ -390,8 +390,8 @@ Resources:
       - !Ref PrivateSubnet1
       - !Ref PrivateSubnet2
       LaunchTemplate: 
-        LaunchTemplateId: !Ref ContainerInstances
-        Version: !GetAtt ContainerInstances.LatestVersionNumber
+        LaunchTemplateId: !Ref ContainerInstancesLaunchTemplate
+        Version: !GetAtt ContainerInstancesLaunchTemplate.LatestVersionNumber
       # These are managed by ECS Capacity Provider, hence 0
       MinSize: 0
       DesiredCapacity: 0
