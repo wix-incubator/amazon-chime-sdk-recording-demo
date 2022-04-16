@@ -392,9 +392,8 @@ Resources:
       LaunchTemplate: 
         LaunchTemplateId: !Ref ContainerInstancesLaunchTemplate
         Version: !GetAtt ContainerInstancesLaunchTemplate.LatestVersionNumber
-      # These are managed by ECS Capacity Provider, hence 0
-      MinSize: 0
-      DesiredCapacity: 0
+      MinSize: 1
+      DesiredCapacity: 1
       MaxSize: !Ref EcsAsgMaxSize
       MetricsCollection:
         - Granularity: 1Minute
