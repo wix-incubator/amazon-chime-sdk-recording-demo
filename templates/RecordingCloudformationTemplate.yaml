@@ -25,7 +25,7 @@ Parameters:
   EcsClusterName:
     Type: String
     Description: 'Specifies the ECS Cluster Name with which the resources would be associated'
-    Default: 'RecordingEC2Cluster'
+    Default: 'RecordingEC2ClusterV2'
   ECRDockerImageArn:
     Type: String
     Description: 'ARN of the docker image stored in ECR along with the tag'
@@ -360,9 +360,9 @@ Resources:
     Properties:
       ClusterName: 
         Ref: EcsClusterName
-      # ClusterSettings:
-      #   - Name: containerInsights
-      #     Value: enabled
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
   ContainerInstancesLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
