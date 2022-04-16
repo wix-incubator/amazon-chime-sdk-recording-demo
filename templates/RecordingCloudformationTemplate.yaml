@@ -115,7 +115,7 @@ Resources:
       Environment:
         Variables:
           ecsClusterArn:
-            Fn::GetAtt: [ECSCluster, Arn]
+            Fn::GetAtt: [ECSClusterV2, Arn]
           ecsContainerName: 
             Ref: ECSContainerName
           ecsTaskDefinitionArn: 
@@ -355,7 +355,7 @@ Resources:
         LogGroupName: !Join ['-', [ECSLogGroup, !Ref AWS::StackName]]
         RetentionInDays: 14
 
-  ECSCluster:
+  ECSClusterV2:
     Type: 'AWS::ECS::Cluster'
     Properties:
       ClusterName: 
@@ -377,7 +377,7 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash -xe
-            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+            echo ECS_CLUSTER=${ECSClusterV2} >> /etc/ecs/ecs.config
             echo ECS_IMAGE_PULL_BEHAVIOR=prefer-cached >> /etc/ecs/ecs.config
             yum install -y aws-cfn-bootstrap
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
@@ -421,7 +421,7 @@ Resources:
   ECSClusterCPA:
     Type: "AWS::ECS::ClusterCapacityProviderAssociations"
     Properties:
-      Cluster: !Ref ECSCluster
+      Cluster: !Ref ECSClusterV2
       CapacityProviders:
         - !Ref ECSCapacityProvider
       DefaultCapacityProviderStrategy:
@@ -470,4 +470,4 @@ Outputs:
     Value: !Ref ECSAutoScalingGroup
   ECSClusterName:
     Description: "Name of the AWS ECS cluster created as part of this deployment"
-    Value: !Ref ECSCluster
+    Value: !Ref ECSClusterV2
