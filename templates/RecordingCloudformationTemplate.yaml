@@ -408,7 +408,6 @@ Resources:
   ECSCapacityProvider:
     Type: 'AWS::ECS::CapacityProvider'
     Properties:
-      Name: 'RecordingECSCapacityProvider'
       AutoScalingGroupProvider:
         AutoScalingGroupArn: !Ref ECSAutoScalingGroup
         ManagedScaling:
