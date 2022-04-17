@@ -179,7 +179,7 @@ const instanceTypeAzs = JSON.parse(
     "--region",
     `${region}`,
   ])
-).join(',');
+).sort().join(',');
 console.log(`Found ${instanceTypeAzs}`);
 
 console.log("Deploying recording application");
