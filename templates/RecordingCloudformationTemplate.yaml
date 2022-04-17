@@ -19,6 +19,9 @@ Parameters:
   ECSContainerMemoryReservation:
     Type: Number
     Default: 8192
+  EcsAutoScalingGroupName:
+    Type: String
+    Default: 'RecordingAutoScalingGroup'
   EcsLaunchTemplateName:
     Type: String
     Default: 'EcsRecordingLaunchTemplate'
@@ -29,6 +32,12 @@ Parameters:
   ECRDockerImageArn:
     Type: String
     Description: 'ARN of the docker image stored in ECR along with the tag'
+  EcsAsgMinSize:
+    Type: Number
+    Default: 1
+  EcsAsgDesiredSize:
+    Type: Number
+    Default: 2
   EcsAsgMaxSize:
     Type: Number
     Default: 10
@@ -386,14 +395,15 @@ Resources:
   ECSAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
+      AutoScalingGroupName: !Ref EcsAutoScalingGroupName
       VPCZoneIdentifier: 
       - !Ref PrivateSubnet1
       - !Ref PrivateSubnet2
       LaunchTemplate: 
         LaunchTemplateId: !Ref ContainerInstancesLaunchTemplate
         Version: !GetAtt ContainerInstancesLaunchTemplate.LatestVersionNumber
-      MinSize: 1
-      DesiredCapacity: 1
+      MinSize: !Ref EcsAsgMinSize
+      DesiredCapacity: !Ref EcsAsgDesiredSize
       MaxSize: !Ref EcsAsgMaxSize
       MetricsCollection:
         - Granularity: 1Minute
@@ -401,7 +411,8 @@ Resources:
       NewInstancesProtectedFromScaleIn: true
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT15M
+        Count: !Ref EcsAsgDesiredSize
+        Timeout: PT5M
     UpdatePolicy:
       AutoScalingReplacingUpdate:
         WillReplace: true
