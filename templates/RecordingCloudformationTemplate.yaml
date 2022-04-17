@@ -69,7 +69,7 @@ Parameters:
     Type: Number
     MinValue: 1
     MaxValue: 256
-    Default: 4 # 2 private + 2 public
+    Default: 5 # 2 private + 2 public
   SubnetOffset:
     Type: Number
     MinValue: 1
@@ -242,7 +242,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 0, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [0, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
@@ -252,7 +252,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 1, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [1, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
@@ -262,7 +262,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 0, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [2, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
+      CidrBlock: !Select [3, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
@@ -272,7 +272,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 1, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [3, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
+      CidrBlock: !Select [4, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
