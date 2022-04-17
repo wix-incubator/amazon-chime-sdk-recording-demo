@@ -22,7 +22,7 @@ Parameters:
   EcsLaunchTemplateName:
     Type: String
     Default: 'EcsRecordingLaunchTemplate'
-  EcsClusterName:
+  EcsClusterNameV2:
     Type: String
     Description: 'Specifies the ECS Cluster Name with which the resources would be associated'
     Default: 'RecordingEC2ClusterV2'
@@ -359,7 +359,7 @@ Resources:
     Type: 'AWS::ECS::Cluster'
     Properties:
       ClusterName: 
-        Ref: EcsClusterName
+        Ref: EcsClusterNameV2
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
