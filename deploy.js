@@ -173,6 +173,8 @@ const output = spawnOrFail("sam", [
   `${stack}`,
   "--parameter-overrides",
   `ECRDockerImageArn=${ecrDockerImageArn}`,
+  `EcsAsgMaxSize=10`,
+  `InstanceType=c6a.xlarge`,
   "--capabilities",
   "CAPABILITY_IAM",
   "--region",
