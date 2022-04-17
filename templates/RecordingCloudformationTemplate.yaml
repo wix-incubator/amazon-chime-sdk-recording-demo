@@ -19,6 +19,9 @@ Parameters:
   ECSContainerMemoryReservation:
     Type: Number
     Default: 8192
+  EcsAutoScalingGroupName:
+    Type: String
+    Default: 'RecordingAutoScalingGroup'
   EcsLaunchTemplateName:
     Type: String
     Default: 'EcsRecordingLaunchTemplate'
@@ -392,6 +395,7 @@ Resources:
   ECSAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
+      AutoScalingGroupName: !Ref EcsAutoScalingGroupName
       VPCZoneIdentifier: 
       - !Ref PrivateSubnet1
       - !Ref PrivateSubnet2
@@ -404,7 +408,7 @@ Resources:
       MetricsCollection:
         - Granularity: 1Minute
         # all metrics are collected when not specified otherwise
-      NewInstancesProtectedFromScaleIn: false
+      NewInstancesProtectedFromScaleIn: true
     CreationPolicy:
       ResourceSignal:
         Count: !Ref EcsAsgDesiredSize
