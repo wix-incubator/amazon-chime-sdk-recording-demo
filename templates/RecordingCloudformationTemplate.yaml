@@ -50,6 +50,10 @@ Parameters:
     m4.2xlarge, m4.4xlarge, m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.8xlarge, c4.xlarge, c4.2xlarge, 
     c4.4xlarge, c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c6a.xlarge]
     ConstraintDescription: Please choose a valid instance type.
+  InstanceTypeSupportedAvailabilityZones:
+    Description: A list of supported availability zones for the given InstanceType
+    Type: CommaDelimitedList
+    Default: ""
   RecordingLogGroupName:
     Type: String
     Default: RecordingLogGroup
@@ -227,7 +231,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      AvailabilityZone: !Select [ 0, !Ref InstanceTypeSupportedAvailabilityZones ]
       CidrBlock: !Ref PrivateSubnet1CIDR
       MapPublicIpOnLaunch: false
       Tags:
@@ -237,7 +241,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      AvailabilityZone: !Select [ 1, !Ref InstanceTypeSupportedAvailabilityZones ]
       CidrBlock: !Ref PrivateSubnet2CIDR
       MapPublicIpOnLaunch: false
       Tags:
@@ -247,7 +251,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      AvailabilityZone: !Select [ 0, !Ref InstanceTypeSupportedAvailabilityZones ]
       CidrBlock: !Ref PublicSubnet1CIDR
       MapPublicIpOnLaunch: true
       Tags:
@@ -257,7 +261,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      AvailabilityZone: !Select [ 1, !Ref InstanceTypeSupportedAvailabilityZones ]
       CidrBlock: !Ref PublicSubnet2CIDR
       MapPublicIpOnLaunch: true
       Tags:
