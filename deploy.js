@@ -166,18 +166,20 @@ spawnOrFail("sam", [
 
 const instanceType = "c6a.xlarge";
 console.log(`Querying availability zones for instance type ${instanceType}`);
-const instanceTypeAzs = spawnOrFail("aws", [
-  "ec2",
-  "describe-instance-type-offerings",
-  "--location-type",
-  "availability-zone",
-  "--filters",
-  `Name=instance-type,Values=${instanceType}`,
-  "--query",
-  "InstanceTypeOfferings[*].Location",
-  "--region",
-  `${region}`,
-]).join(',');
+const instanceTypeAzs = JSON.parse(
+  spawnOrFail("aws", [
+    "ec2",
+    "describe-instance-type-offerings",
+    "--location-type",
+    "availability-zone",
+    "--filters",
+    `Name=instance-type,Values=${instanceType}`,
+    "--query",
+    "InstanceTypeOfferings[*].Location",
+    "--region",
+    `${region}`,
+  ])
+).join(',');
 console.log(`Found ${instanceTypeAzs}`);
 
 console.log("Deploying recording application");
