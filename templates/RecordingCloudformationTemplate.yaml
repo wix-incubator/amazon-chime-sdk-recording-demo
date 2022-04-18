@@ -68,19 +68,19 @@ Parameters:
   PrivateSubnet1CIDR:
     Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
     Type: String
-    Default: 10.192.16.0/24
+    Default: 10.192.12.0/24
   PrivateSubnet2CIDR:
     Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
     Type: String
-    Default: 10.192.17.0/24
+    Default: 10.192.13.0/24
   PublicSubnet1CIDR:
     Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
     Type: String
-    Default: 10.192.14.0/24
+    Default: 10.192.10.0/24
   PublicSubnet2CIDR:
     Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
     Type: String
-    Default: 10.192.15.0/24
+    Default: 10.192.11.0/24
 Resources:
   RecordingArtifactsUploadBucket:
     Type: AWS::S3::Bucket
