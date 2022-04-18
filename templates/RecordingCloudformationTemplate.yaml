@@ -65,32 +65,22 @@ Parameters:
     Description: Please enter the IP range (CIDR notation) for this VPC
     Type: String
     Default: 10.192.0.0/16
-  NumberOfSubnets:
-    Type: Number
-    MinValue: 1
-    MaxValue: 256
-    Default: 5 # 2 private + 2 public
-  SubnetOffset:
-    Type: Number
-    MinValue: 1
-    MaxValue: 256
-    Default: 8 # same as /24
-  # PrivateSubnet1CIDR:
-  #   Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
-  #   Type: String
-  #   Default: 10.192.12.0/24
-  # PrivateSubnet2CIDR:
-  #   Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
-  #   Type: String
-  #   Default: 10.192.13.0/24
-  # PublicSubnet1CIDR:
-  #   Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
-  #   Type: String
-  #   Default: 10.192.10.0/24
-  # PublicSubnet2CIDR:
-  #   Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
-  #   Type: String
-  #   Default: 10.192.11.0/24
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.16.0/24
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.17.0/24
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.14.0/24
+  PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.15.0/24
 Resources:
   RecordingArtifactsUploadBucket:
     Type: AWS::S3::Bucket
@@ -242,7 +232,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 0, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [1, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
+      CidrBlock: !Ref PrivateSubnet1CIDR
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
@@ -252,7 +242,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 1, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [2, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
+      CidrBlock: !Ref PrivateSubnet2CIDR
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
@@ -262,7 +252,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 0, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [3, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
+      CidrBlock: !Ref PublicSubnet1CIDR
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
@@ -272,7 +262,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Select [ 1, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [4, !Cidr [!Ref VpcCIDR, !Ref NumberOfSubnets, !Ref SubnetOffset]]
+      CidrBlock: !Ref PublicSubnet2CIDR
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
