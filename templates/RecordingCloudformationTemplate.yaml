@@ -457,7 +457,7 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Count: !Ref EcsAsgDesiredSize
-        Timeout: PT15M
+        Timeout: PT30M
     UpdatePolicy:
       AutoScalingReplacingUpdate:
         WillReplace: true
