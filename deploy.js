@@ -182,7 +182,7 @@ const instanceTypeAzs = JSON.parse(
 ).sort().join(',');
 console.log(`Found ${instanceTypeAzs}`);
 
-const accountId = spawnOrFail("aws", [
+const accountId = parseInt(spawnOrFail("aws", [
   "sts",
   "get-caller-identity",
   "--query",
@@ -191,9 +191,9 @@ const accountId = spawnOrFail("aws", [
   "text",
   "--region",
   `${region}`,
-]);
-if (!parseInt(accountId)) {
-  console.log(`Invalid account id: ${accountId}`);
+]));
+if (!accountId) {
+  console.log(`Invalid account id`);
   process.exit(1);
 }
 const recordingsBucket = `live-video-${accountId}-${region}-recordings`;
