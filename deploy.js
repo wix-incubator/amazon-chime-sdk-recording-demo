@@ -23,7 +23,7 @@ function usage() {
   console.log(`  -h, --help         Show help and exit`);
 }
 
-function ensureBucket() {
+function ensureBucket(bucket, region) {
   const s3Api = spawnSync("aws", [
     "s3api",
     "head-bucket",
@@ -150,7 +150,7 @@ if (!fs.existsSync("build")) {
 
 console.log(`Using region ${region}, bucket ${bucket}, stack ${stack}`);
 ensureEC2ImageId();
-ensureBucket();
+ensureBucket(bucket, region);
 
 spawnOrFail("sam", [
   "package",
@@ -182,6 +182,23 @@ const instanceTypeAzs = JSON.parse(
 ).sort().join(',');
 console.log(`Found ${instanceTypeAzs}`);
 
+const accountId = spawnOrFail("aws", [
+  "sts",
+  "get-caller-identity",
+  "--query",
+  "Account",
+  "--output",
+  "text",
+  "--region",
+  `${region}`,
+]);
+if (!parseInt(accountId)) {
+  console.log(`Invalid account id: ${accountId}`);
+  process.exit(1);
+}
+const recordingsBucket = `live-video-${accountId}-${region}-recordings`;
+ensureBucket(recordingsBucket, region);
+
 console.log("Deploying recording application");
 const output = spawnOrFail("sam", [
   "deploy",
@@ -191,6 +208,7 @@ const output = spawnOrFail("sam", [
   `${stack}`,
   "--parameter-overrides",
   `EnvironmentName=recording-environment`,
+  `RecordingArtifactsUploadBucket=${recordingsBucket}`,
   `ECRDockerImageArn=${ecrDockerImageArn}`,
   `EcsAsgMinSize=1`,
   `EcsAsgDesiredSize=2`,

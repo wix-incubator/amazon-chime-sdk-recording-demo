@@ -53,9 +53,6 @@ Parameters:
   InstanceTypeSupportedAvailabilityZones:
     Description: A list of supported availability zones for the given InstanceType
     Type: CommaDelimitedList
-  RecordingLogGroupName:
-    Type: String
-    Default: RecordingLogGroup
   EnvironmentName:
     Description: An environment name that is prefixed to resource names
     Type: String
@@ -69,13 +66,9 @@ Parameters:
   PublicSubnetsCIDR:
     Description: Please enter the IP range (CIDR notation) for the public subnet in each Availability Zone
     Type: CommaDelimitedList
-Resources:
   RecordingArtifactsUploadBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-        AccessControl: BucketOwnerFullControl
-        BucketName:
-          Fn::Join: ['', ['live-video-', {Ref: 'AWS::AccountId'}, '-', {Ref: 'AWS::Region'}, '-recordings']]
+    Type: String
+Resources:
   RecordingLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -94,8 +87,7 @@ Resources:
   RecordingBuildDeployGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: 
-        Ref: RecordingLogGroupName
+      LogGroupName: !Sub ${EnvironmentName}-log-group
       RetentionInDays: 365
   
   RecordingLambdaFunction:
