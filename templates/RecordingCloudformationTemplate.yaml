@@ -121,12 +121,8 @@ Resources:
           recordingArtifactsBucket:
             Ref: RecordingArtifactsUploadBucket
       CodeUri: ../lambda/
-      Events:
-        Api1:
-          Type: Api
-          Properties:
-            Path: /recording
-            Method: POST
+      FunctionUrlConfig:
+        AuthType: NONE # TODO: change to IAM
 
   ECSRecordingTaskDefinition:
     Type: 'AWS::ECS::TaskDefinition'
@@ -460,9 +456,9 @@ Resources:
             Resource: '*'
 
 Outputs:
-  ApiURL:
+  RecordingLambdaFunctionUrl:
     Description: "API endpoint URL for Prod environment"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/recording"
+    Value: !GetAtt RecordingLambdaFunction.FunctionUrl
   AutoScalingGroupName:
     Description: "Name of the AWS AutoScalingGroup created as part of this deployment"
     Value: !Ref ECSAutoScalingGroup
