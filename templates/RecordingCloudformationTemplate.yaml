@@ -127,7 +127,7 @@ Resources:
           Properties:
             Path: /recording
             Method: POST
-  
+
   ECSRecordingTaskDefinition:
     Type: 'AWS::ECS::TaskDefinition'
     Properties:
@@ -215,20 +215,6 @@ Resources:
     Properties:
       Domain: vpc
 
-  NATGateway3:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt ElasticIPAddress3.AllocationId
-      SubnetId: !Ref PublicSubnet3
-      Tags:
-      - Key: Name
-        Value: !Sub ${EnvironmentName} NAT GW (AZ3)
-  ElasticIPAddress3:
-    Type: AWS::EC2::EIP
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      Domain: vpc
-
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -249,16 +235,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
-  PrivateSubnet3:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 2, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [ 2, !Ref PrivateSubnetsCIDR ]
-      MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName} Private Subnet (AZ3)
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -279,16 +255,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
-  PublicSubnet3:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [ 2, !Ref InstanceTypeSupportedAvailabilityZones ]
-      CidrBlock: !Select [ 2, !Ref PublicSubnetsCIDR ]
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName} Public Subnet (AZ3)
   PrivateRouteTable1:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -303,13 +269,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName} Private Routes 2
-  PrivateRouteTable3:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName} Private Routes 3
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -330,12 +289,6 @@ Resources:
       RouteTableId: !Ref PrivateRouteTable2
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NATGateway2
-  DefaultPrivateRoute3:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable3
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NATGateway3
   DefaultPublicRoute:
     Type: AWS::EC2::Route
     DependsOn: InternetGatewayAttachment
@@ -354,11 +307,6 @@ Resources:
     Properties:
       RouteTableId: !Ref PrivateRouteTable2
       SubnetId: !Ref PrivateSubnet2
-  PrivateSubnet3RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable3
-      SubnetId: !Ref PrivateSubnet3
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -369,11 +317,6 @@ Resources:
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet2
-  PublicSubnet3RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet3
 
   EcsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -443,7 +386,7 @@ Resources:
     Properties:
       VPCZoneIdentifier: 
       - !Ref PrivateSubnet1
-      - !Ref PrivateSubnet3
+      - !Ref PrivateSubnet2
       LaunchTemplate: 
         LaunchTemplateId: !Ref ContainerInstancesLaunchTemplate
         Version: !GetAtt ContainerInstancesLaunchTemplate.LatestVersionNumber
@@ -456,7 +399,7 @@ Resources:
       NewInstancesProtectedFromScaleIn: true
     CreationPolicy:
       ResourceSignal:
-        Count: !Ref EcsAsgDesiredSize
+        # Count: !Ref EcsAsgDesiredSize
         Timeout: PT30M
     UpdatePolicy:
       AutoScalingReplacingUpdate:
