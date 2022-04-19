@@ -9,7 +9,11 @@ Parameters:
     Default: 8192
   ECSContainerName:
     Type: String
-    Default: 'recording-container'
+    Default: recording-container
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: recording-environment
   ECSContainerCpu:
     Type: Number
     Default: 4096
@@ -19,13 +23,6 @@ Parameters:
   ECSContainerMemoryReservation:
     Type: Number
     Default: 8192
-  EcsLaunchTemplateName:
-    Type: String
-    Default: 'EcsRecordingLaunchTemplate'
-  EcsClusterNameV2:
-    Type: String
-    Description: 'Specifies the ECS Cluster Name with which the resources would be associated'
-    Default: 'RecordingEC2ClusterV2'
   ECRDockerImageArn:
     Type: String
     Description: 'ARN of the docker image stored in ECR along with the tag'
@@ -53,10 +50,6 @@ Parameters:
   InstanceTypeSupportedAvailabilityZones:
     Description: A list of supported availability zones for the given InstanceType
     Type: CommaDelimitedList
-  EnvironmentName:
-    Description: An environment name that is prefixed to resource names
-    Type: String
-    Default: recording-environment
   VpcCIDR:
     Description: Please enter the IP range (CIDR notation) for this VPC
     Type: String
@@ -105,7 +98,7 @@ Resources:
       Environment:
         Variables:
           ecsClusterArn:
-            Fn::GetAtt: [ECSClusterV2, Arn]
+            Fn::GetAtt: [ECSCluster, Arn]
           ecsContainerName: 
             Ref: ECSContainerName
           ecsTaskDefinitionArn: 
@@ -341,18 +334,17 @@ Resources:
         LogGroupName: !Join ['-', [ECSLogGroup, !Ref AWS::StackName]]
         RetentionInDays: 14
 
-  ECSClusterV2:
+  ECSCluster:
     Type: 'AWS::ECS::Cluster'
     Properties:
-      ClusterName: 
-        Ref: EcsClusterNameV2
+      ClusterName: !Sub ${EnvironmentName}-ecs-cluster
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
   ContainerInstancesLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: !Ref EcsLaunchTemplateName
+      LaunchTemplateName: !Sub ${EnvironmentName}-launch-template
       LaunchTemplateData:
         ImageId: !Ref ImageId
         InstanceType: !Ref InstanceType
@@ -363,7 +355,7 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash -xe
-            echo ECS_CLUSTER=${ECSClusterV2} >> /etc/ecs/ecs.config
+            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
             echo ECS_IMAGE_PULL_BEHAVIOR=prefer-cached >> /etc/ecs/ecs.config
             yum install -y aws-cfn-bootstrap
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
@@ -407,7 +399,7 @@ Resources:
   ECSClusterCPA:
     Type: "AWS::ECS::ClusterCapacityProviderAssociations"
     Properties:
-      Cluster: !Ref ECSClusterV2
+      Cluster: !Ref ECSCluster
       CapacityProviders:
         - !Ref ECSCapacityProvider
       DefaultCapacityProviderStrategy:
@@ -456,4 +448,4 @@ Outputs:
     Value: !Ref ECSAutoScalingGroup
   ECSClusterName:
     Description: "Name of the AWS ECS cluster created as part of this deployment"
-    Value: !Ref ECSClusterV2
+    Value: !Ref ECSCluster
