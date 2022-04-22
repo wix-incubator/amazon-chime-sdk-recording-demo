@@ -85,7 +85,7 @@ export class CdkStack extends Stack {
           statements: [new iam.PolicyStatement({
             actions: ['ecs:CreateCluster', 'ecs:DeregisterContainerInstance', 'ecs:DiscoverPollEndpoint',
               'ecs:Poll', 'ecs:RegisterContainerInstance', 'ecs:StartTelemetrySession',
-              'ecs:Submit*', 'logs:CreateLogStream', 'logs:PutLogEvents', 'ecr:GetAuthorizationToken', 
+              'ecs:Submit*', 'logs:CreateLogStream', 'logs:PutLogEvents', 'ecr:GetAuthorizationToken',
               'ecr:BatchCheckLayerAvailability', 'ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer', 'autoscaling:CreateOrUpdateTags'
             ],
             resources: ['*']
@@ -114,14 +114,14 @@ export class CdkStack extends Stack {
     // TODO: rewrite using Level-2 constructs once https://github.com/aws/aws-cdk/pull/19066 is GA'd
     const autoScalingGroup = new autoscaling.CfnAutoScalingGroup(this, `${prefix}ManagedASG`, {
       vpcZoneIdentifier: vpc.privateSubnets.map(x => x.subnetId),
-      launchTemplate: { 
-        launchTemplateId: launchTemplate.launchTemplateId, 
-        version: launchTemplate.latestVersionNumber 
+      launchTemplate: {
+        launchTemplateId: launchTemplate.launchTemplateId,
+        version: launchTemplate.latestVersionNumber
       },
       minSize: `${asgMinSize}`,
       desiredCapacity: `${asgDesiredCapacity}`,
       maxSize: `${asgMaxSize}`,
-      metricsCollection: [ { granularity: '1Minute' } ],
+      metricsCollection: [{ granularity: '1Minute' }],
       newInstancesProtectedFromScaleIn: true,
     });
     autoScalingGroup.cfnOptions.creationPolicy = {
@@ -134,7 +134,7 @@ export class CdkStack extends Stack {
     };
     userData.addCommands(
       `echo ECS_CLUSTER=${ecsCluster.clusterName} >> /etc/ecs/ecs.config`,
-      'echo ECS_IMAGE_PULL_BEHAVIOR=prefer-cached >> /etc/ecs/ecs.config', 
+      'echo ECS_IMAGE_PULL_BEHAVIOR=prefer-cached >> /etc/ecs/ecs.config',
       'yum install -y aws-cfn-bootstrap',
       `/opt/aws/bin/cfn-signal -e $? --stack ${this.stackName} --resource ${autoScalingGroup.logicalId} --region ${this.region}`,
     );
@@ -153,7 +153,7 @@ export class CdkStack extends Stack {
     });
     const clusterCpa = new ecs.CfnClusterCapacityProviderAssociations(this, `${prefix}ECSClusterCPA`, {
       cluster: ecsCluster.clusterName,
-      capacityProviders: [ capacityProvider.ref ],
+      capacityProviders: [capacityProvider.ref],
       defaultCapacityProviderStrategy: [
         { base: 1, weight: 1, capacityProvider: capacityProvider.ref }
       ],
@@ -237,7 +237,7 @@ export class CdkStack extends Stack {
     const userCredentials = new iam.AccessKey(this, `${prefix}FunctionAccessKey`, { user: user, serial: 1 });
     const secretValue = secretsmanager.SecretStringValueBeta1.fromToken(userCredentials.secretAccessKey.toString());
     const secret = new secretsmanager.Secret(this, `${prefix}FunctionAccessKeySecret`, {
-       secretStringBeta1: secretValue,
+      secretStringBeta1: secretValue,
     });
     new cdk.CfnOutput(this, `${prefix}FunctionAccessKeySecretArn`, {
       value: secret.secretArn
