@@ -1,17 +1,17 @@
-import { Duration, Stack, StackProps } from 'aws-cdk-lib';
-import { Construct } from 'constructs';
 import * as cdk from 'aws-cdk-lib';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import * as ecs from 'aws-cdk-lib/aws-ecs';
-// import * as ecr from 'aws-cdk-lib/aws-ecr';
+import { Duration, Stack, StackProps } from 'aws-cdk-lib';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { DefaultInstanceTenancy, SubnetFilter, SubnetType } from 'aws-cdk-lib/aws-ec2';
+import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { Code } from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
-import { Code } from 'aws-cdk-lib/aws-lambda';
-import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import { Construct } from 'constructs';
 
 export class CdkStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -38,19 +38,13 @@ export class CdkStack extends Stack {
 
     const recordingArtifactsBucket = `live-video-${this.account}-${this.region}-recordings`
 
-    // const ecrDockerImageArn = '';
-    // const availabilityZones = 
-    // const azs = ['us-east-1d', 'us-east-1f'];
-
     const vpc = new ec2.Vpc(this, `${prefix}VPC`, {
       cidr: vpcCidr,
-      // natGateways: 2,
       maxAzs: 2,
       enableDnsSupport: true,
       enableDnsHostnames: true,
       defaultInstanceTenancy: DefaultInstanceTenancy.DEFAULT,
       natGatewaySubnets: {
-        // availabilityZones: azs,
         onePerAz: true,
         subnetFilters: [
           SubnetFilter.onePerAz()
@@ -165,16 +159,6 @@ export class CdkStack extends Stack {
       ],
     });
 
-
-    const lambdaFunctionRole = new iam.Role(this, `${prefix}LambdaFunctionRole`, {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-      managedPolicies: [
-        { managedPolicyArn: 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess' },
-        { managedPolicyArn: 'arn:aws:iam::aws:policy/AmazonECS_FullAccess' },
-        { managedPolicyArn: 'arn:aws:iam::aws:policy/AmazonS3FullAccess' },
-      ],
-    });
-
     const ecsTaskLogGroup = new logs.LogGroup(this, `${prefix}ECSTaskLogGroup`, {
       retention: RetentionDays.ONE_YEAR,
     });
@@ -186,7 +170,6 @@ export class CdkStack extends Stack {
         { name: 'dbus', host: { sourcePath: '/run/dbus/system_bus_socket:/run/dbus/system_bus_socket' } }
       ],
     });
-    // const ecrRepo = new ecr.Repository(this, `${prefix}ECRRepository`);
     const dockerImage = new DockerImageAsset(this, `${prefix}DockerImage`, {
       directory: '../'
     });
@@ -207,6 +190,14 @@ export class CdkStack extends Stack {
       linuxParameters: ecsLinuxParameters,
     });
 
+    const lambdaFunctionRole = new iam.Role(this, `${prefix}LambdaFunctionRole`, {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        { managedPolicyArn: 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess' },
+        { managedPolicyArn: 'arn:aws:iam::aws:policy/AmazonECS_FullAccess' },
+        { managedPolicyArn: 'arn:aws:iam::aws:policy/AmazonS3FullAccess' },
+      ],
+    });
     const lambdaFunction = new lambda.Function(this, `${prefix}LambdaFunction`, {
       runtime: lambda.Runtime.NODEJS_12_X,
       timeout: Duration.seconds(300),
@@ -226,20 +217,33 @@ export class CdkStack extends Stack {
     const lambdaFunctionUrl = new cdk.CfnResource(this, `${prefix}LambdaFunctionURL`, {
       type: 'AWS::Lambda::Url',
       properties: {
-        AuthType: 'NONE', // TODO: change to IAM
+        AuthType: 'AWS_IAM',
         TargetFunctionArn: lambdaFunction.functionArn,
-      }
+      },
+    });
+    lambdaFunction.addPermission(`${prefix}FunctionURLInvocation`, {
+      action: 'lambda:InvokeFunctionUrl',
+      principal: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    });
+    new cdk.CfnOutput(this, `${prefix}FunctionUrl`, {
+      value: lambdaFunctionUrl.getAtt('FunctionUrl').toString()
     });
 
-    // const autoScalingGroup = new autoscaling.AutoScalingGroup(this, 'recorder-autoscaling-group', {
-    //   vpc: vpc,
-    //   instanceType: new ec2.InstanceType(instanceType),
-    //   launchTemplate: launchTemplate,
-
-    // });
-    // example resource
-    // const queue = new sqs.Queue(this, 'CdkQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    const user = new iam.User(this, `${prefix}FunctionInvokeUser`);
+    user.addToPolicy(new iam.PolicyStatement({
+      actions: ['lambda:InvokeFunctionUrl'],
+      resources: [lambdaFunction.functionArn],
+    }));
+    const userCredentials = new iam.AccessKey(this, `${prefix}FunctionAccessKey`, { user: user, serial: 1 });
+    const secretValue = secretsmanager.SecretStringValueBeta1.fromToken(userCredentials.secretAccessKey.toString());
+    const secret = new secretsmanager.Secret(this, `${prefix}FunctionAccessKeySecret`, {
+       secretStringBeta1: secretValue,
+    });
+    new cdk.CfnOutput(this, `${prefix}FunctionAccessKeySecretArn`, {
+      value: secret.secretArn
+    });
+    new cdk.CfnOutput(this, `${prefix}FunctionAccessKeyId`, {
+      value: userCredentials.accessKeyId
+    });
   }
 }
