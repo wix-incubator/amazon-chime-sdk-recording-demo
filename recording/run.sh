@@ -94,8 +94,8 @@ firefox=$!
 while true; do
   # Since we do not know whether we joined yet -
   # keep clicking harmlessly forever in a separate thread
-  xdotool mousemove $UNBLOCK_CLICK_X $UNBLOCK_CLICK_Y click 1
-  sleep 1
+  xdotool mousemove $UNBLOCK_CLICK_X $UNBLOCK_CLICK_Y click 1 > /dev/null 2>&1
+  sleep 1 > /dev/null 2>&1
 done &
 
 sleep $RECORDER_DELAY # Skip part of long loading procedure...

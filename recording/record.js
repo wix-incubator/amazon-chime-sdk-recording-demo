@@ -21,7 +21,7 @@ log(
 );
 
 const VIDEO_BITRATE = 3000;
-const VIDEO_FRAMERATE = 24;
+const VIDEO_FRAMERATE = 25;
 const VIDEO_GOP = VIDEO_FRAMERATE * 2;
 const AUDIO_BITRATE = "160k";
 const AUDIO_SAMPLERATE = 44100;
@@ -50,12 +50,14 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   // hides the mouse cursor from the resulting video
   "-draw_mouse",
   "0",
-  // "-rtbufsize",
-  // "104857600", // 100M
+  // "-threads",
+  // "4",
+  "-rtbufsize",
+  "104857600", // 100M
   // "-probesize",
   // "10000000", // 10MB
-  // "-thread_queue_size",
-  // "1024", // 1024 * 1280 * 720 * 4 bytes ~= 3.5GB
+  "-thread_queue_size",
+  "1024", // 1024 * 1280 * 720 * 4 bytes ~= 3.5GB
   // grab the x11 display as video input
   "-f",
   "x11grab",
@@ -66,12 +68,14 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   "pulse",
   "-ac",
   "2",
-  // "-thread_queue_size",
-  // "1024",
+  "-thread_queue_size",
+  "1024",
   "-i",
   "default",
-  // "-vsync",
-  // "vfr",
+  "-vsync",
+  "vfr",
+  "-enc_time_base",
+  "-1",
   // codec video with libx264
   "-c:v",
   "libx264",
@@ -81,8 +85,8 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   "main",
   "-preset",
   "veryfast",
-  // "-tune",
-  // "zerolatency",
+  "-tune",
+  "zerolatency",
   "-x264opts",
   "nal-hrd=cbr:no-scenecut",
   "-minrate",
@@ -100,8 +104,8 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   `${AUDIO_CHANNELS}`,
   "-ar",
   `${AUDIO_SAMPLERATE}`,
-  // "-af",
-  // "aresample=async=1000",
+  "-af",
+  "aresample=async=1000",
   // adjust fragmentation to prevent seeking(resolve issue: muxer does not support non seekable output)
   "-movflags",
   "empty_moov+default_base_moof+frag_keyframe",
