@@ -97,6 +97,7 @@ export class CdkStack extends Stack {
     });
 
     const ecsCluster = new ecs.Cluster(this, `${prefix}ECSCluster`, {
+      clusterName: `${prefix}ECSC`,
       vpc: vpc,
       containerInsights: true,
     });
