@@ -147,8 +147,6 @@ export class CdkStack extends Stack {
       volumes: [
         { name: 'dbus', host: { sourcePath: '/run/dbus/system_bus_socket:/run/dbus/system_bus_socket' } }
       ],
-      networkMode: ecs.NetworkMode.HOST,
-      placementConstraints: [ ecs.PlacementConstraint.distinctInstances() ],
     });
     ecsTaskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
       actions: [
