@@ -28,10 +28,10 @@ export class CdkStack extends Stack {
 
     const ecsContainerName = 'recording-container';
     const ecsTaskCpu = '4096';
-    const ecsTaskMemory = '7500';
+    const ecsTaskMemory = '8000';
     const ecsContainerCpu = 4096;
-    const ecsContainerMemoryLimit = 8192;
-    const ecsContainerMemoryReservation = 8192;
+    const ecsContainerMemoryLimit = 8000;
+    const ecsContainerMemoryReservation = 8000;
     const ecsContainerLinuxSharedMemorySize = 2048;
 
     const recordingArtifactsBucket = `live-video-${this.account}-${this.region}-recordings`
