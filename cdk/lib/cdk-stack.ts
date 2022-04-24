@@ -155,7 +155,7 @@ export class CdkStack extends Stack {
         's3:AbortMultipartUpload',
         's3:ListMultipartUploadParts',
       ],
-      resources: [recordingArtifactsBucket.bucketArn],
+      resources: [`${recordingArtifactsBucket.bucketArn}*`],
     }))
     const dockerImage = new DockerImageAsset(this, `${prefix}DockerImage`, {
       directory: '../'
