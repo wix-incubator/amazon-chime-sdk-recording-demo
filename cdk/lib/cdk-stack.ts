@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Duration, Stack, StackProps } from 'aws-cdk-lib';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
+import { CfnAutoScalingGroup } from 'aws-cdk-lib/aws-autoscaling';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { DefaultInstanceTenancy, SubnetFilter, SubnetType } from 'aws-cdk-lib/aws-ec2';
 import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
@@ -17,20 +18,17 @@ export class CdkStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
-
     const prefix = 'RecorderV2';
 
     const vpcCidr = '10.193.0.0/16';
 
     const instanceType = 'c6a.xlarge';
     const asgMinSize = 1;
-    const asgDesiredCapacity = 2;
     const asgMaxSize = 10;
 
     const ecsContainerName = 'recording-container';
     const ecsTaskCpu = '4096';
-    const ecsTaskMemory = '8192';
+    const ecsTaskMemory = '7500';
     const ecsContainerCpu = 4096;
     const ecsContainerMemoryLimit = 8192;
     const ecsContainerMemoryReservation = 8192;
@@ -111,53 +109,29 @@ export class CdkStack extends Stack {
       detailedMonitoring: true,
       userData: userData,
     });
-    // TODO: rewrite using Level-2 constructs once https://github.com/aws/aws-cdk/pull/19066 is GA'd
-    const autoScalingGroup = new autoscaling.CfnAutoScalingGroup(this, `${prefix}ManagedASG`, {
-      vpcZoneIdentifier: vpc.privateSubnets.map(x => x.subnetId),
-      launchTemplate: {
-        launchTemplateId: launchTemplate.launchTemplateId,
-        version: launchTemplate.latestVersionNumber
-      },
-      minSize: `${asgMinSize}`,
-      desiredCapacity: `${asgDesiredCapacity}`,
-      maxSize: `${asgMaxSize}`,
-      metricsCollection: [{ granularity: '1Minute' }],
+    const autoScalingGroup = new autoscaling.AutoScalingGroup(this, `${prefix}ManagedASG`, {
+      vpc: vpc,
+      launchTemplate: launchTemplate,
+      minCapacity: asgMinSize,
+      maxCapacity: asgMaxSize,
+      groupMetrics: [autoscaling.GroupMetrics.all()],
       newInstancesProtectedFromScaleIn: true,
+      updatePolicy: autoscaling.UpdatePolicy.rollingUpdate(),
     });
-    autoScalingGroup.cfnOptions.creationPolicy = {
-      resourceSignal: { timeout: 'PT15M' }
-    };
-    autoScalingGroup.cfnOptions.updatePolicy = {
-      autoScalingReplacingUpdate: {
-        willReplace: true
-      }
-    };
+    const autoScalingGroupLogicalId = this.getLogicalId(autoScalingGroup.node.defaultChild as CfnAutoScalingGroup);
     userData.addCommands(
       `echo ECS_CLUSTER=${ecsCluster.clusterName} >> /etc/ecs/ecs.config`,
       'echo ECS_IMAGE_PULL_BEHAVIOR=prefer-cached >> /etc/ecs/ecs.config',
       'yum install -y aws-cfn-bootstrap',
-      `/opt/aws/bin/cfn-signal -e $? --stack ${this.stackName} --resource ${autoScalingGroup.logicalId} --region ${this.region}`,
+      `/opt/aws/bin/cfn-signal -e $? --stack ${this.stackName} --resource ${autoScalingGroupLogicalId} --region ${this.region}`,
     );
-    const capacityProvider = new ecs.CfnCapacityProvider(this, `${prefix}ECSCapacityProvider`, {
-      autoScalingGroupProvider: {
-        autoScalingGroupArn: autoScalingGroup.ref, //logicalId,
-        managedScaling: {
-          instanceWarmupPeriod: 20, // seconds
-          maximumScalingStepSize: 100,
-          minimumScalingStepSize: 2,
-          status: 'ENABLED',
-          targetCapacity: 80, // keep 20% of instances warm and ready
-        },
-        managedTerminationProtection: 'ENABLED',
-      },
+    const capacityProvider = new ecs.AsgCapacityProvider(this, `${prefix}ECSCapacityProvider`, {
+      autoScalingGroup: autoScalingGroup,
+      enableManagedScaling: true,
+      enableManagedTerminationProtection: true,
+      targetCapacityPercent: 80,
     });
-    const clusterCpa = new ecs.CfnClusterCapacityProviderAssociations(this, `${prefix}ECSClusterCPA`, {
-      cluster: ecsCluster.clusterName,
-      capacityProviders: [capacityProvider.ref],
-      defaultCapacityProviderStrategy: [
-        { base: 1, weight: 1, capacityProvider: capacityProvider.ref }
-      ],
-    });
+    ecsCluster.addAsgCapacityProvider(capacityProvider);
 
     const ecsTaskLogGroup = new logs.LogGroup(this, `${prefix}ECSTaskLogGroup`, {
       retention: RetentionDays.ONE_YEAR,
@@ -213,20 +187,17 @@ export class CdkStack extends Stack {
       },
       code: Code.fromAsset('../lambda/'),
     });
-    lambdaFunction.node.addDependency(clusterCpa);
-    const lambdaFunctionUrl = new cdk.CfnResource(this, `${prefix}LambdaFunctionURL`, {
-      type: 'AWS::Lambda::Url',
-      properties: {
-        AuthType: 'AWS_IAM',
-        TargetFunctionArn: lambdaFunction.functionArn,
-      },
+    lambdaFunction.node.addDependency(capacityProvider);
+    const lambdaFunctionUrl = new lambda.FunctionUrl(this, `${prefix}LambdaFunctionURL`, {
+      function: lambdaFunction,
+      authType: lambda.FunctionUrlAuthType.AWS_IAM,
     });
     lambdaFunction.addPermission(`${prefix}FunctionURLInvocation`, {
       action: 'lambda:InvokeFunctionUrl',
       principal: new iam.ServicePrincipal('lambda.amazonaws.com'),
     });
     new cdk.CfnOutput(this, `${prefix}FunctionUrl`, {
-      value: lambdaFunctionUrl.getAtt('FunctionUrl').toString()
+      value: lambdaFunctionUrl.url
     });
 
     const user = new iam.User(this, `${prefix}FunctionInvokeUser`);
@@ -235,9 +206,9 @@ export class CdkStack extends Stack {
       resources: [lambdaFunction.functionArn],
     }));
     const userCredentials = new iam.AccessKey(this, `${prefix}FunctionAccessKey`, { user: user, serial: 1 });
-    const secretValue = secretsmanager.SecretStringValueBeta1.fromToken(userCredentials.secretAccessKey.toString());
+    const secretValue = new cdk.SecretValue(userCredentials.secretAccessKey.toString());
     const secret = new secretsmanager.Secret(this, `${prefix}FunctionAccessKeySecret`, {
-      secretStringBeta1: secretValue,
+      secretStringValue: secretValue,
     });
     new cdk.CfnOutput(this, `${prefix}FunctionAccessKeySecretArn`, {
       value: secret.secretArn
