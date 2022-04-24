@@ -15,7 +15,7 @@ _kill_procs() {
 # Setup a trap to catch SIGTERM/SIGINT and relay it to child processes
 trap _kill_procs SIGTERM SIGINT
 
-echo v15-wix
+echo v16-wix
 
 set -xeo pipefail
 

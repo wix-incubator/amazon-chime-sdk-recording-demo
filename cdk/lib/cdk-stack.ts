@@ -1,8 +1,9 @@
 import * as cdk from 'aws-cdk-lib';
-import { Duration, Stack, StackProps } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 import { CfnAutoScalingGroup } from 'aws-cdk-lib/aws-autoscaling';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 import { DefaultInstanceTenancy, SubnetFilter, SubnetType } from 'aws-cdk-lib/aws-ec2';
 import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
@@ -33,8 +34,6 @@ export class CdkStack extends Stack {
     const ecsContainerMemoryLimit = 7700;
     const ecsContainerMemoryReservation = 7700;
     const ecsContainerLinuxSharedMemorySize = 2048;
-
-    const recordingArtifactsBucket = `live-video-${this.account}-${this.region}-recordings`
 
     const vpc = new ec2.Vpc(this, `${prefix}VPC`, {
       cidr: vpcCidr,
@@ -92,8 +91,12 @@ export class CdkStack extends Stack {
       },
     });
 
-    const logGroup = new logs.LogGroup(this, `${prefix}LogGroup`, {
-      retention: RetentionDays.TWO_WEEKS,
+    const recordingArtifactsBucket = new s3.Bucket(this, `${prefix}RecordingsBucket`, {
+      accessControl: s3.BucketAccessControl.BUCKET_OWNER_FULL_CONTROL,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+    new cdk.CfnOutput(this, `${prefix}RecordingsS3BucketName`, {
+      value: recordingArtifactsBucket.bucketName
     });
 
     const ecsCluster = new ecs.Cluster(this, `${prefix}ECSCluster`, {
@@ -117,7 +120,7 @@ export class CdkStack extends Stack {
       maxCapacity: asgMaxSize,
       groupMetrics: [autoscaling.GroupMetrics.all()],
       newInstancesProtectedFromScaleIn: true,
-      updatePolicy: autoscaling.UpdatePolicy.rollingUpdate(),
+      updatePolicy: autoscaling.UpdatePolicy.replacingUpdate(),//rollingUpdate(),
     });
     const autoScalingGroupLogicalId = this.getLogicalId(autoScalingGroup.node.defaultChild as CfnAutoScalingGroup);
     userData.addCommands(
@@ -144,7 +147,18 @@ export class CdkStack extends Stack {
       volumes: [
         { name: 'dbus', host: { sourcePath: '/run/dbus/system_bus_socket:/run/dbus/system_bus_socket' } }
       ],
+      networkMode: ecs.NetworkMode.HOST,
+      placementConstraints: [ ecs.PlacementConstraint.distinctInstances() ],
     });
+    ecsTaskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
+      actions: [
+        's3:GetObject',
+        's3:PutObject',
+        's3:AbortMultipartUpload',
+        's3:ListMultipartUploadParts',
+      ],
+      resources: [recordingArtifactsBucket.bucketArn],
+    }))
     const dockerImage = new DockerImageAsset(this, `${prefix}DockerImage`, {
       directory: '../'
     });
@@ -184,7 +198,7 @@ export class CdkStack extends Stack {
         'ecsClusterArn': ecsCluster.clusterArn,
         'ecsContainerName': ecsContainerName,
         'ecsTaskDefinitionArn': ecsTaskDefinition.taskDefinitionArn,
-        'recordingArtifactsBucket': recordingArtifactsBucket,
+        'recordingArtifactsBucket': recordingArtifactsBucket.bucketName,
       },
       code: Code.fromAsset('../lambda/'),
     });
