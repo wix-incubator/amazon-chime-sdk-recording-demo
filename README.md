@@ -14,64 +14,46 @@ Additional information can be found in internal Slack channel for live-video.
 
 ---
 
-## Installation
+## Deploy
 
-Apart from a few minor changes, installation is based on following documentation:
-https://aws.amazon.com/blogs/business-productivity/how-to-enable-client-side-recording-using-the-amazon-chime-sdk/
+> WARNING: you will be charged by AWS for resources created by this script. Make sure you understand what is being created. If you are testing on staging environment - modify instance type and reduce number of running instances.
 
-Installation is performed via Cloud9 environment - it is a pre-configured thin client with terminal and IDE in it.
+#### Prerequisites:
 
-To create/use Cloud9, connect to AWS console and search for Cloud9 service. Make sure you are in the correct region in order to see already available VMs.
+- Node.js 14.x.x+
+- AWS CLI (`brew install awscli` or https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+- AWS CDK (`npm install -g aws-cdk`)
+- Docker
 
-Should you need to create a new environment, use following options:
 
-- Create a new no-ingress EC2 instance for environment (access via Systems Manager)
-- t3-medium machine
-- Ubuntu Server 18.04 LTS
-
-In case installation is performed on a new AWS account, you would need to create a repository:
-
-```
-aws ecr create-repository --repository-name live-recorder
-```
-
-Please note that names used might need to be changed. For example, when it comes to S3 - bucket names must be unique globally.
-
-Then inside Cloud9 one should clone this repository:
-
-```
-git clone https://github.com/wix-incubator/amazon-live-video-recorder
+Setup credentials for AWS CLI, make sure correct account is selected:
+```bash
+aws sts get-caller-identity
+# {
+#     "UserId": "user-id:user@example.com",
+#     "Account": "xxxxxxxxxxxx",
+#     "Arn": "arn:aws:sts::xxxxxxxxxxxx:assumed-role/role/user@example.com"
+# }
 ```
 
-To build new docker image, run the following command:
-
-```
-make ECR_REPO_URI={repository URI}
-```
-
-Sometimes build fails due to lack of space on disk. Should this happen, you can increase disk size and repeat make operation. To increase size, run following commands:
-
-```
-# Check disk and partition name and use it in commands below
-df -h
-
-# Increase volume size (change path and partition number if needed based on df command above)
-sudo growpart /dev/nvme0n1 1
-sudo resize2fs /dev/nvme0n1p1
-
-# Retry make
-make ECR_REPO_URI={repository URI}
+If deploying on a new account - bootstrap CDK first. This provisions supporting resources for deployment:
+```bash
+cd cdk
+cdk bootstrap
 ```
 
-You can also find URI by going to AWS console and then going into Elastic Container Registry. There will be a list of registries with URIs in the table.
-
-Finally, you need to deploy docker image, configure cloud, S3, network, etc. This is done by using script:
-
+Compile CDK stack or run watch server:
+```bash
+npm run watch
+# OR
+npm run build
 ```
-node ./deploy.js -b live-recorder -s live-recorder -i {repository URI}:latest -r us-east-1
-```
 
-During initial deployment this script is known to sometimes fail due to timeout. Should that happen, changes will automatically be reverted. To work-around the issue try modifying deploy.js script to use _RecordingCloudformationTemplateOnlyNetwork.yaml_ cloud formation template. After running with reduced template, switch back to _RecordingCloudformationTemplateNAT.yaml_ and run the script again.
+Finally, deploy changes and confirm changes:
+```bash
+# Builds Docker image from included sources and deploys synthesized CloudFormation stack
+cdk deploy
+```
 
 ---
 
@@ -87,22 +69,11 @@ Code for Lambda function can be found under "lambda" folder.
 
 Code for recorder logic (which would go to docker image) can be found under "recording" folder.
 
-When files are changed in the repository, in order to deploy changes following steps need to be performed:
-
-- Connect to AWS console and go to Cloud9 environment. Make sure you have access to it. If not - create a new environment and clone code to it (see installation section). Also, feel free to create new environment if stuck at "Connecting...".
-- Build an updated docker image (you can find repository URI by going to AWS console and then going into Elastic Container Registry. There will be a list of registries with URIs in the table):
-
+Updating is performed in same way:
+```bash
+npm run build
+cdk deploy
 ```
-make ECR_REPO_URI={repository URI}
-```
-
-- Deploy updated image and new Lambda:
-
-```
-node ./deploy.js -b live-recorder -s live-recorder -i {repository URI}:latest -r us-east-1
-```
-
-There have been cases when above command fails due to token expiration during update. After this happens stack goes into cleanup mode and repeated deploy command will fail until it is finished. It may take up to an hour in some cases. After cleanup is complete, please try deployment again - experience shows that it tends to succeed second time...
 
 Once above steps are completed, test recording, then open CloudWatch, go to "Log groups", go to "RecordingLogGroup", find logs of your test recorder and confirm that echo'ed version at the top of the logs matches your updated version.
 
@@ -172,21 +143,21 @@ Finally, Lambda can be called asking for signed recording download link and late
 During initial deployment following configuration was used:
 
 - Maximum of 1000 instances are allowed.
-- Minimum of 50 instances are allowed.
-- It is desired to have 50 instances.
-- Aim is to have 60% of instances with tasks. Should percentage increase, new instances would need to be fired up. Should it decrease, overhead instance should be terminated.
-- When adding/removing instances - maximum of 100 instances may be added/removed in a single go.
-- When adding/removing instances - minimum of 5 instances may be added/removed in a single go.
+- Minimum of 25 instances are allowed.
+- It is desired to have 25 instances.
+- Aim is to have 80% of instances with tasks. Should percentage increase, new instances would need to be fired up. Should it decrease, overhead instance should be terminated.
+- When adding/removing instances - maximum of 1000 instances may be added/removed in a single go.
+- When adding/removing instances - minimum of 1 instances may be added/removed in a single go.
 
-Initially after deployment - 50 empty (without tasks) instances are launched.
+Initially after deployment - 25 empty (without tasks) instances are launched.
 
 Once more than 30 instances become occupied with tasks, additional instances are launched. New instances take approx. 300 seconds to be prepared and to appear in the list.
 
 Amount of instances can further increase up to 1000.
 
-Should amount of recordings decrease, instances will be terminated to try and maintain no more than 60% instances occupied with tasks.
+Should amount of recordings decrease, instances will be terminated to try and maintain no more than 80% instances occupied with tasks.
 
-Scale down would stop once there are 50 instances and no further instances would be terminated.
+Scale down would stop once there are 25 instances and no further instances would be terminated.
 
 ## Bonus topics
 
@@ -197,21 +168,21 @@ There has been a case where lambda crashed and video did not appear in S3.
 To recover such video, one can try running the following command:
 
 ```
-aws s3api list-multipart-uploads --bucket live-video-153051424915-us-east-1-recordings
+aws s3api list-multipart-uploads --bucket <bucket name>
 ```
 
 This will list incomplete uploads. Search for missing key in the resulting JSON output and use its information for commands below.
 
 Gather multipart upload part information:
 ```
-aws s3api list-parts --bucket live-video-153051424915-us-east-1-recordings --key '{key of missing video}' --upload-id {uploadId from result of previous command} > recovery.json
+aws s3api list-parts --bucket <bucket name> --key '{key of missing video}' --upload-id {uploadId from result of previous command} > recovery.json
 ```
 
 Once JSON is stored in file, leave only "Parts" key in it. Also ensure that each item inside "Parts" contains only "PartNumber" and "ETag" keys - delete all other keys. This can easily be done by using RegExp find-replace functionality of your favourite IDE.
 
 Once "recovery.json" is prepared, run the following command:
 ```
-aws s3api complete-multipart-upload --multipart-upload file://recovery.json --bucket live-video-153051424915-us-east-1-recordings --key '{key of missing video}' --upload-id {uploadId from result of previous command}
+aws s3api complete-multipart-upload --multipart-upload file://recovery.json --bucket <bucket name> --key '{key of missing video}' --upload-id {uploadId from result of previous command}
 ```
 
 This command should connect parts of multipart-upload and create a missing S3 object.
