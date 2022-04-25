@@ -5,11 +5,17 @@ const AWS = require("aws-sdk");
 
 class S3Utils {
   constructor(bucket, key) {
+    const sts = new AWS.STS();
+    sts.getCallerIdentity({}, (err, data) => {
+      if (err) console.log(err, err.stack);
+      else console.log(data);
+    });
+    
     this.bucket = bucket;
     this.key = key;
     this.fileS3 = new AWS.S3({ params: { Bucket: bucket, Key: key } });
     console.log(
-      `[S3] constructed a S3 object with bucket: ${this.bucket}, key: ${this.key}`
+      `[S3] constructing an S3 object with bucket: ${this.bucket}, key: ${this.key}`
     );
   }
 

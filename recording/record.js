@@ -6,22 +6,22 @@ const { S3Utils } = require("./utils/s3");
 
 const OUTPUT_FILE_NAME =
   process.env.OUTPUT_FILE_NAME || "Not present in environment";
-console.log(`[recording process] OUTPUT_FILE_NAME: ${OUTPUT_FILE_NAME}`);
+log(`OUTPUT_FILE_NAME: ${OUTPUT_FILE_NAME}`);
 
 const TARGET_URL = process.env.TARGET_URL || "Not present in environment";
-console.log(`[recording process] TARGET_URL: ${TARGET_URL}`);
+log(`TARGET_URL: ${TARGET_URL}`);
 
 const args = process.argv.slice(2);
 const BUCKET_NAME = args[0];
-console.log(`[recording process] BUCKET_NAME: ${BUCKET_NAME}`);
+log(`BUCKET_NAME: ${BUCKET_NAME}`);
 const BROWSER_SCREEN_WIDTH = args[1];
 const BROWSER_SCREEN_HEIGHT = args[2];
-console.log(
-  `[recording process] BROWSER_SCREEN_WIDTH: ${BROWSER_SCREEN_WIDTH}, BROWSER_SCREEN_HEIGHT: ${BROWSER_SCREEN_HEIGHT}`
+log(
+  `BROWSER_SCREEN_WIDTH: ${BROWSER_SCREEN_WIDTH}, BROWSER_SCREEN_HEIGHT: ${BROWSER_SCREEN_HEIGHT}`
 );
 
 const VIDEO_BITRATE = 3000;
-const VIDEO_FRAMERATE = 30;
+const VIDEO_FRAMERATE = 25;
 const VIDEO_GOP = VIDEO_FRAMERATE * 2;
 const AUDIO_BITRATE = "160k";
 const AUDIO_SAMPLERATE = 44100;
@@ -50,6 +50,14 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   // hides the mouse cursor from the resulting video
   "-draw_mouse",
   "0",
+  // "-threads",
+  // "4",
+  "-rtbufsize",
+  "104857600", // 100M
+  // "-probesize",
+  // "10000000", // 10MB
+  "-thread_queue_size",
+  "1024", // 1024 * 1280 * 720 * 4 bytes ~= 3.5GB
   // grab the x11 display as video input
   "-f",
   "x11grab",
@@ -60,8 +68,14 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   "pulse",
   "-ac",
   "2",
+  "-thread_queue_size",
+  "1024",
   "-i",
   "default",
+  "-vsync",
+  "vfr",
+  "-enc_time_base",
+  "-1",
   // codec video with libx264
   "-c:v",
   "libx264",
@@ -71,6 +85,8 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   "main",
   "-preset",
   "veryfast",
+  "-tune",
+  "zerolatency",
   "-x264opts",
   "nal-hrd=cbr:no-scenecut",
   "-minrate",
@@ -79,9 +95,6 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   `${VIDEO_BITRATE}`,
   "-g",
   `${VIDEO_GOP}`,
-  // apply a fixed delay to the audio stream in order to synchronize it with the video stream
-  "-filter_complex",
-  "adelay=delays=1000|1000",
   // codec audio with aac
   "-c:a",
   "aac",
@@ -91,18 +104,23 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   `${AUDIO_CHANNELS}`,
   "-ar",
   `${AUDIO_SAMPLERATE}`,
+  "-af",
+  "aresample=async=1000",
   // adjust fragmentation to prevent seeking(resolve issue: muxer does not support non seekable output)
   "-movflags",
-  "frag_keyframe+empty_moov",
+  "empty_moov+default_base_moof+frag_keyframe",
   // set output format to mp4 and output file to stdout
   "-f",
   "mp4",
   "-",
 ]);
 
-transcodeStreamToOutput.stderr.on("data", (data) => {
-  console.log(
-    `[transcodeStreamToOutput process] stderr: ${new Date().toISOString()} ffmpeg: ${data}`
+transcodeStreamToOutput.stderr.on("data", (data) =>
+  error(`stderr: ${data}`)
+);
+transcodeStreamToOutput.on("close", (code) => {
+  log(
+    `exited with code ${code}`
   );
 });
 
@@ -111,25 +129,21 @@ new S3Utils(BUCKET_NAME, fileName).uploadStream(transcodeStreamToOutput.stdout);
 
 // event handler for docker stop, not exit until upload completes
 process.on("SIGTERM", (code, signal) => {
-  console.log(
-    `[recording process] exited with code ${code} and signal ${signal}(SIGTERM)`
-  );
+  log(`exited with code ${code} and signal ${signal}(SIGTERM)`);
   clearInterval(recordingDurationInterval);
   process.kill(transcodeStreamToOutput.pid, "SIGTERM");
 });
 
 // debug use - event handler for ctrl + c
 process.on("SIGINT", (code, signal) => {
-  console.log(
-    `[recording process] exited with code ${code} and signal ${signal}(SIGINT)`
-  );
+  log(`exited with code ${code} and signal ${signal}(SIGINT)`);
   clearInterval(recordingDurationInterval);
   process.kill("SIGTERM");
 });
 
 process.on("exit", function (code) {
   clearInterval(recordingDurationInterval);
-  console.log("[recording process] exit code", code);
+  log(`[recording process] exit code ${code}`);
 });
 
 recordingDurationInterval = setInterval(() => {
@@ -137,7 +151,19 @@ recordingDurationInterval = setInterval(() => {
 
   if (remainingSeconds < 0) {
     clearInterval(recordingDurationInterval);
-    console.log("[recording process] task is running for too long - killing");
+    log("[recording process] task is running for too long - killing");
     process.kill(transcodeStreamToOutput.pid, "SIGTERM");
   }
 }, 1000);
+
+function log(s) {
+  console.log(
+    `[recording process] ${new Date().toISOString()} ${s}`
+  );
+}
+
+function error(s) {
+  console.error(
+    `[recording process] ${new Date().toISOString()} ${s}`
+  );
+}
