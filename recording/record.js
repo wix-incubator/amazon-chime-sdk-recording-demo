@@ -112,7 +112,7 @@ const transcodeStreamToOutput = spawn("ffmpeg", [
   // set output format to mp4 and output file to stdout
   "-f",
   "mp4",
-  '-',
+  "-",
 ]);
 
 transcodeStreamToOutput.stderr.on("data", (data) =>
