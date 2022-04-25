@@ -19,13 +19,11 @@ export class CdkStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const prefix = 'RecorderV2';
-
     const vpcCidr = '10.193.0.0/16';
 
     const instanceType = 'c6a.xlarge';
-    const asgMinSize = 1;
-    const asgMaxSize = 10;
+    const asgMinSize = 25;
+    const asgMaxSize = 1000;
 
     const ecsContainerName = 'recording-container';
     const ecsTaskCpu = '4096';
@@ -35,7 +33,7 @@ export class CdkStack extends Stack {
     const ecsContainerMemoryReservation = 7700;
     const ecsContainerLinuxSharedMemorySize = 2048;
 
-    const vpc = new ec2.Vpc(this, `${prefix}VPC`, {
+    const vpc = new ec2.Vpc(this, `VPC`, {
       cidr: vpcCidr,
       maxAzs: 2,
       enableDnsSupport: true,
@@ -62,14 +60,14 @@ export class CdkStack extends Stack {
       ],
     });
 
-    const securityGroup = new ec2.SecurityGroup(this, `${prefix}EC2SecurityGroup`, {
+    const securityGroup = new ec2.SecurityGroup(this, `EC2SecurityGroup`, {
       vpc: vpc
     });
     securityGroup.addIngressRule(ec2.Peer.ipv4('0.0.0.0/0'), ec2.Port.tcp(80), 'HTTP inbound');
     securityGroup.addIngressRule(ec2.Peer.ipv4('0.0.0.0/0'), ec2.Port.tcp(22), 'SSH inbound');
     securityGroup.addIngressRule(securityGroup, ec2.Port.tcpRange(31000, 61000), 'ALB ports');
 
-    const ec2Role = new iam.Role(this, `${prefix}EC2Role`, {
+    const ec2Role = new iam.Role(this, `EC2Role`, {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
       path: '/',
       managedPolicies: [
@@ -91,21 +89,21 @@ export class CdkStack extends Stack {
       },
     });
 
-    const recordingArtifactsBucket = new s3.Bucket(this, `${prefix}RecordingsBucket`, {
+    const recordingArtifactsBucket = new s3.Bucket(this, `RecordingsBucket`, {
       accessControl: s3.BucketAccessControl.BUCKET_OWNER_FULL_CONTROL,
       removalPolicy: RemovalPolicy.RETAIN,
     });
-    new cdk.CfnOutput(this, `${prefix}RecordingsS3BucketName`, {
+    new cdk.CfnOutput(this, `RecordingsS3BucketName`, {
       value: recordingArtifactsBucket.bucketName
     });
 
-    const ecsCluster = new ecs.Cluster(this, `${prefix}ECSCluster`, {
-      clusterName: `${prefix}ECSC`,
+    const ecsCluster = new ecs.Cluster(this, `ECSCluster`, {
+      clusterName: `${this.stackName}ECSC`,
       vpc: vpc,
       containerInsights: true,
     });
     const userData = ec2.UserData.forLinux({ shebang: '#!/bin/bash -xe' });
-    const launchTemplate = new ec2.LaunchTemplate(this, `${prefix}EC2LaunchTemplate`, {
+    const launchTemplate = new ec2.LaunchTemplate(this, `EC2LaunchTemplate`, {
       instanceType: new ec2.InstanceType(instanceType),
       machineImage: ecs.EcsOptimizedImage.amazonLinux2(),
       securityGroup: securityGroup,
@@ -113,14 +111,14 @@ export class CdkStack extends Stack {
       detailedMonitoring: true,
       userData: userData,
     });
-    const autoScalingGroup = new autoscaling.AutoScalingGroup(this, `${prefix}ManagedASG`, {
+    const autoScalingGroup = new autoscaling.AutoScalingGroup(this, `ManagedASG`, {
       vpc: vpc,
       launchTemplate: launchTemplate,
       minCapacity: asgMinSize,
       maxCapacity: asgMaxSize,
       groupMetrics: [autoscaling.GroupMetrics.all()],
       newInstancesProtectedFromScaleIn: true,
-      updatePolicy: autoscaling.UpdatePolicy.replacingUpdate(),//rollingUpdate(),
+      updatePolicy: autoscaling.UpdatePolicy.replacingUpdate(),
     });
     const autoScalingGroupLogicalId = this.getLogicalId(autoScalingGroup.node.defaultChild as CfnAutoScalingGroup);
     userData.addCommands(
@@ -129,7 +127,7 @@ export class CdkStack extends Stack {
       'yum install -y aws-cfn-bootstrap',
       `/opt/aws/bin/cfn-signal -e $? --stack ${this.stackName} --resource ${autoScalingGroupLogicalId} --region ${this.region}`,
     );
-    const capacityProvider = new ecs.AsgCapacityProvider(this, `${prefix}ECSCapacityProvider`, {
+    const capacityProvider = new ecs.AsgCapacityProvider(this, `ECSCapacityProvider`, {
       autoScalingGroup: autoScalingGroup,
       enableManagedScaling: true,
       enableManagedTerminationProtection: true,
@@ -137,10 +135,10 @@ export class CdkStack extends Stack {
     });
     ecsCluster.addAsgCapacityProvider(capacityProvider);
 
-    const ecsTaskLogGroup = new logs.LogGroup(this, `${prefix}ECSTaskLogGroup`, {
+    const ecsTaskLogGroup = new logs.LogGroup(this, `ECSTaskLogGroup`, {
       retention: RetentionDays.ONE_YEAR,
     });
-    const ecsTaskDefinition = new ecs.TaskDefinition(this, `${prefix}ECSTaskDefinition`, {
+    const ecsTaskDefinition = new ecs.TaskDefinition(this, `ECSTaskDefinition`, {
       cpu: ecsTaskCpu,
       memoryMiB: ecsTaskMemory,
       compatibility: ecs.Compatibility.EC2,
@@ -157,13 +155,13 @@ export class CdkStack extends Stack {
       ],
       resources: [`${recordingArtifactsBucket.bucketArn}*`],
     }))
-    const dockerImage = new DockerImageAsset(this, `${prefix}DockerImage`, {
+    const dockerImage = new DockerImageAsset(this, `DockerImage`, {
       directory: '../'
     });
-    const ecsLinuxParameters = new ecs.LinuxParameters(this, `${prefix}ECSLinuxParameters`, {
+    const ecsLinuxParameters = new ecs.LinuxParameters(this, `ECSLinuxParameters`, {
       sharedMemorySize: ecsContainerLinuxSharedMemorySize,
     });
-    ecsTaskDefinition.addContainer(`${prefix}DockerContainer`, {
+    ecsTaskDefinition.addContainer(`DockerContainer`, {
       containerName: ecsContainerName,
       cpu: ecsContainerCpu,
       memoryLimitMiB: ecsContainerMemoryLimit,
@@ -177,7 +175,7 @@ export class CdkStack extends Stack {
       linuxParameters: ecsLinuxParameters,
     });
 
-    const lambdaFunctionRole = new iam.Role(this, `${prefix}LambdaFunctionRole`, {
+    const lambdaFunctionRole = new iam.Role(this, `LambdaFunctionRole`, {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       managedPolicies: [
         { managedPolicyArn: 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess' },
@@ -185,7 +183,7 @@ export class CdkStack extends Stack {
         { managedPolicyArn: 'arn:aws:iam::aws:policy/AmazonS3FullAccess' },
       ],
     });
-    const lambdaFunction = new lambda.Function(this, `${prefix}LambdaFunction`, {
+    const lambdaFunction = new lambda.Function(this, `LambdaFunction`, {
       runtime: lambda.Runtime.NODEJS_12_X,
       timeout: Duration.seconds(300),
       memorySize: 3008,
@@ -201,32 +199,32 @@ export class CdkStack extends Stack {
       code: Code.fromAsset('../lambda/'),
     });
     lambdaFunction.node.addDependency(capacityProvider);
-    const lambdaFunctionUrl = new lambda.FunctionUrl(this, `${prefix}LambdaFunctionURL`, {
+    const lambdaFunctionUrl = new lambda.FunctionUrl(this, `LambdaFunctionURL`, {
       function: lambdaFunction,
       authType: lambda.FunctionUrlAuthType.AWS_IAM,
     });
-    lambdaFunction.addPermission(`${prefix}FunctionURLInvocation`, {
+    lambdaFunction.addPermission(`FunctionURLInvocation`, {
       action: 'lambda:InvokeFunctionUrl',
       principal: new iam.ServicePrincipal('lambda.amazonaws.com'),
     });
-    new cdk.CfnOutput(this, `${prefix}FunctionUrl`, {
+    new cdk.CfnOutput(this, `FunctionUrl`, {
       value: lambdaFunctionUrl.url
     });
 
-    const user = new iam.User(this, `${prefix}FunctionInvokeUser`);
+    const user = new iam.User(this, `FunctionInvokeUser`);
     user.addToPolicy(new iam.PolicyStatement({
       actions: ['lambda:InvokeFunctionUrl'],
       resources: [lambdaFunction.functionArn],
     }));
-    const userCredentials = new iam.AccessKey(this, `${prefix}FunctionAccessKey`, { user: user, serial: 1 });
+    const userCredentials = new iam.AccessKey(this, `FunctionAccessKey`, { user: user, serial: 1 });
     const secretValue = new cdk.SecretValue(userCredentials.secretAccessKey.toString());
-    const secret = new secretsmanager.Secret(this, `${prefix}FunctionAccessKeySecret`, {
+    const secret = new secretsmanager.Secret(this, `FunctionAccessKeySecret`, {
       secretStringValue: secretValue,
     });
-    new cdk.CfnOutput(this, `${prefix}FunctionAccessKeySecretArn`, {
+    new cdk.CfnOutput(this, `FunctionAccessKeySecretArn`, {
       value: secret.secretArn
     });
-    new cdk.CfnOutput(this, `${prefix}FunctionAccessKeyId`, {
+    new cdk.CfnOutput(this, `FunctionAccessKeyId`, {
       value: userCredentials.accessKeyId
     });
   }
